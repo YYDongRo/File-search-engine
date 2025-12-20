@@ -8,8 +8,10 @@ ThreadPool::ThreadPool(size_t num_threads) {
 }
 
 ThreadPool::~ThreadPool() {
-    shutdown();
+    // Ensure threads are joined if user forgot to call shutdown()
+    if (!stopping_) shutdown();
 }
+
 
 void ThreadPool::enqueue(std::function<void()> job) {
     {

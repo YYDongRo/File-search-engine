@@ -1,0 +1,9 @@
+# macOS junk
+.DS_Store
+
+# Build artifacts
+build/
+
+# Qt / CMake
+CMakeCache.txt
+CMakeFiles/
