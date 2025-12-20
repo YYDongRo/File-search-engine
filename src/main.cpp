@@ -21,58 +21,14 @@ static std::string normalize_word(const std::string& w) {
     return out;
 }
 
-int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <folder> <query_word>\n";
-        return 1;
-    }
-
-    fs::path root = argv[1];
-    std::string query = normalize_word(argv[2]);
-
-    if (!fs::exists(root)) {
-        std::cerr << "Error: path does not exist: " << root << "\n";
-        return 1;
-    }
-
-    // word -> (file -> count)
-    std::unordered_map<std::string, std::unordered_map<std::string, int>> index;
-
-    // Build index
-    for (const auto& entry : fs::recursive_directory_iterator(root)) {
-        if (!entry.is_regular_file()) continue;
-        if (entry.path().filename() == ".DS_Store") continue;
-
-        std::ifstream file(entry.path());
-        if (!file.is_open()) continue;
-
-        const std::string filepath = entry.path().string();
-
-        std::string token;
-        char ch;
-        while (file.get(ch)) {
-            unsigned char uc = (unsigned char)ch;
-            if (is_word_char(uc)) {
-                token.push_back(ch);
-            } else {
-                if (!token.empty()) {
-                    std::string w = normalize_word(token);
-                    index[w][filepath]++;  // add count
-                    token.clear();
-                }
-            }
-        }
-        if (!token.empty()) {
-            std::string w = normalize_word(token);
-            index[w][filepath]++;
-        }
-    }
-
-    // Search
+static void print_results(
+    const std::unordered_map<std::string, std::unordered_map<std::string, int>>& index,
+    const std::string& query
+) {
     auto it = index.find(query);
     if (it == index.end()) {
         std::cout << "No results for: " << query << "\n";
-        return 0;
+        return;
     }
 
     std::vector<std::pair<std::string, int>> results;
@@ -92,6 +48,67 @@ int main(int argc, char** argv) {
     for (const auto& [file, count] : results) {
         std::cout << count << "  " << file << "\n";
         if (++shown >= 20) break;
+    }
+}
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <folder>\n";
+        return 1;
+    }
+
+    fs::path root = argv[1];
+    if (!fs::exists(root)) {
+        std::cerr << "Error: path does not exist: " << root << "\n";
+        return 1;
+    }
+
+    // word -> (file -> count)
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> index;
+
+    // Build index once
+    for (const auto& entry : fs::recursive_directory_iterator(root)) {
+        if (!entry.is_regular_file()) continue;
+        if (entry.path().filename() == ".DS_Store") continue;
+
+        std::ifstream file(entry.path());
+        if (!file.is_open()) continue;
+
+        const std::string filepath = entry.path().string();
+
+        std::string token;
+        char ch;
+        while (file.get(ch)) {
+            unsigned char uc = (unsigned char)ch;
+            if (is_word_char(uc)) {
+                token.push_back(ch);
+            } else {
+                if (!token.empty()) {
+                    std::string w = normalize_word(token);
+                    index[w][filepath]++;
+                    token.clear();
+                }
+            }
+        }
+        if (!token.empty()) {
+            std::string w = normalize_word(token);
+            index[w][filepath]++;
+        }
+    }
+
+    std::cout << "Indexed. Type a single word to search. Type 'quit' to exit.\n";
+
+    // Query loop
+    std::string input;
+    while (true) {
+        std::cout << "> ";
+        if (!std::getline(std::cin, input)) break;
+
+        input = normalize_word(input);
+        if (input.empty()) continue;
+        if (input == "quit" || input == "exit") break;
+
+        print_results(index, input);
     }
 
     return 0;
