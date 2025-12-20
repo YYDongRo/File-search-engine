@@ -20,3 +20,9 @@ A high-performance C++ file indexing and search tool with a Qt GUI.
 ```bash
 cmake -S . -B build
 cmake --build build
+
+## Run
+```bash
+./build/search_engine_gui
+```
+
