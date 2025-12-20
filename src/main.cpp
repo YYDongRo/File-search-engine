@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -21,17 +22,23 @@ static std::string normalize_word(const std::string& w) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <folder>\n";
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <folder> <query_word>\n";
         return 1;
     }
 
     fs::path root = argv[1];
+    std::string query = normalize_word(argv[2]);
+
     if (!fs::exists(root)) {
-        std::cerr << "Path does not exist\n";
+        std::cerr << "Error: path does not exist: " << root << "\n";
         return 1;
     }
 
+    // word -> (file -> count)
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> index;
+
+    // Build index
     for (const auto& entry : fs::recursive_directory_iterator(root)) {
         if (!entry.is_regular_file()) continue;
         if (entry.path().filename() == ".DS_Store") continue;
@@ -39,7 +46,7 @@ int main(int argc, char** argv) {
         std::ifstream file(entry.path());
         if (!file.is_open()) continue;
 
-        std::unordered_map<std::string, int> counts;
+        const std::string filepath = entry.path().string();
 
         std::string token;
         char ch;
@@ -50,31 +57,41 @@ int main(int argc, char** argv) {
             } else {
                 if (!token.empty()) {
                     std::string w = normalize_word(token);
-                    counts[w]++;
+                    index[w][filepath]++;  // add count
                     token.clear();
                 }
             }
         }
-        if (!token.empty()) { // last token at EOF
+        if (!token.empty()) {
             std::string w = normalize_word(token);
-            counts[w]++;
+            index[w][filepath]++;
         }
+    }
 
-        // Sort top words by frequency
-        std::vector<std::pair<std::string, int>> items(counts.begin(), counts.end());
-        std::sort(items.begin(), items.end(),
-                  [](const auto& a, const auto& b) {
-                      if (a.second != b.second) return a.second > b.second;
-                      return a.first < b.first;
-                  });
+    // Search
+    auto it = index.find(query);
+    if (it == index.end()) {
+        std::cout << "No results for: " << query << "\n";
+        return 0;
+    }
 
-        std::cout << "==== " << entry.path() << " ====\n";
-        int shown = 0;
-        for (const auto& [word, cnt] : items) {
-            if (word.empty()) continue;
-            std::cout << word << ": " << cnt << "\n";
-            if (++shown >= 10) break;
-        }
+    std::vector<std::pair<std::string, int>> results;
+    results.reserve(it->second.size());
+    for (const auto& [file, count] : it->second) {
+        results.push_back({file, count});
+    }
+
+    std::sort(results.begin(), results.end(),
+              [](const auto& a, const auto& b) {
+                  if (a.second != b.second) return a.second > b.second;
+                  return a.first < b.first;
+              });
+
+    std::cout << "Results for: " << query << "\n";
+    int shown = 0;
+    for (const auto& [file, count] : results) {
+        std::cout << count << "  " << file << "\n";
+        if (++shown >= 20) break;
     }
 
     return 0;
