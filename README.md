@@ -14,7 +14,6 @@ A high-performance C++ file indexing and search tool with a Qt GUI.
 - C++17
 - CMake
 - Qt6
-- std::filesystem, std::thread, mutex
 
 ## Build
 ```bash
